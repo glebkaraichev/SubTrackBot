@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.18.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+    <PackageReference Include="Telegram.Bot" Version="22.10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SubTrack.Application\SubTrack.Application.csproj" />
+    <ProjectReference Include="..\SubTrack.Infrastructure\SubTrack.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Dockerfile">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

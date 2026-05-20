@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SubTrack.Api/SubTrack.Api.csproj" Id="87016238-e702-4c61-8857-487f96b44dfc" />
+  <Project Path="SubTrack.Application/SubTrack.Application.csproj" />
+  <Project Path="SubTrack.Domain/SubTrack.Domain.csproj" />
+  <Project Path="SubTrack.Infrastructure/SubTrack.Infrastructure.csproj" />
+</Solution>
