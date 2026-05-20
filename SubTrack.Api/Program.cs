@@ -19,7 +19,7 @@ builder.Services.AddSingleton<ITelegramBotClient>(provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();
     var token = configuration["BotConfiguration:BotToken"]
-                ?? throw new InvalidOperationException("Telegram Bot Token не найден!");
+                ?? throw new InvalidOperationException("Telegram Bot Token не найден в конфигурации!");
     return new TelegramBotClient(token);
 });
 
@@ -27,9 +27,26 @@ builder.Services.AddMediatR(cfg => {
     cfg.RegisterServicesFromAssembly(typeof(SubTrack.Application.Subscriptions.Commands.CreateSubscriptionCommand).Assembly);
 });
 
-// Настройка подключения
+// 2. БЕЗОПАСНАЯ НАСТРОЙКА БД (УНИВЕРСАЛЬНЫЙ ПАРСЕР)
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+                       ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+Console.WriteLine($"DEBUG: Полученная строка подключения: {connectionString?.Substring(0, Math.Min(15, connectionString?.Length ?? 0))}...");
+
+if (string.IsNullOrEmpty(connectionString))
+    throw new Exception("КРИТИЧЕСКАЯ ОШИБКА: Строка подключения пуста!");
+
+// Если Render передает строку в формате postgresql://, преобразуем её
+if (connectionString.StartsWith("postgresql://"))
+{
+    var uri = new Uri(connectionString);
+    var username = uri.UserInfo.Split(':')[0];
+    var password = uri.UserInfo.Split(':')[1];
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.LocalPath.Substring(1)};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddScoped<SubTrack.Application.Common.IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
@@ -45,31 +62,24 @@ builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 var app = builder.Build();
 
-// 2. ПАЙПЛАЙН (Middleware)
+// 3. ПАЙПЛАЙН
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// 3. БЕЗОПАСНАЯ ПРИМЕНЕНИЕ МИГРАЦИЙ
+// 4. ПРИМЕНЕНИЕ МИГРАЦИЙ
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    int retries = 10;
-    while (retries > 0)
+    try
     {
-        try
-        {
-            Console.WriteLine("Попытка подключения к базе данных...");
-            db.Database.Migrate();
-            Console.WriteLine("База данных успешно обновлена!");
-            break;
-        }
-        catch (Exception ex)
-        {
-            retries--;
-            Console.WriteLine($"Ошибка БД: {ex.Message}. Осталось попыток: {retries}. Ждем 10 секунд...");
-            Thread.Sleep(10000);
-        }
+        Console.WriteLine("Попытка применения миграций...");
+        db.Database.Migrate();
+        Console.WriteLine("База данных успешно обновлена!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"КРИТИЧЕСКАЯ ОШИБКА МИГРАЦИИ: {ex.Message}");
     }
 }
 
