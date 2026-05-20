@@ -7,86 +7,42 @@ using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. СЕРВИСЫ
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
 builder.Services.AddHostedService<TelegramBotWorker>();
 builder.Services.AddSingleton<UpdateRouter>();
 
+// Токен бота
 builder.Services.AddSingleton<ITelegramBotClient>(provider =>
 {
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var token = configuration["BotConfiguration:BotToken"]
-                ?? throw new InvalidOperationException("Telegram Bot Token не найден в конфигурации!");
+    var token = builder.Configuration["BotConfiguration:BotToken"]
+                ?? throw new Exception("Токен не найден!");
     return new TelegramBotClient(token);
 });
 
-builder.Services.AddMediatR(cfg => {
-    cfg.RegisterServicesFromAssembly(typeof(SubTrack.Application.Subscriptions.Commands.CreateSubscriptionCommand).Assembly);
-});
-
-// 2. БЕЗОПАСНАЯ НАСТРОЙКА БД (УНИВЕРСАЛЬНЫЙ ПАРСЕР)
-// Просто используем DATABASE_URL напрямую, если он есть
+// Настройка БД: максимально простая
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
-
-if (string.IsNullOrEmpty(connectionString))
-{
-    connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-}
-
-Console.WriteLine($"DEBUG: Использую строку: {connectionString}");
-
-// Npgsql сам умеет парсить строку формата postgresql://
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, o => o.MigrationsHistoryTable("__EFMigrationsHistory")));
-
-// Если Render передает строку в формате postgresql://, преобразуем её
-if (connectionString.StartsWith("postgresql://"))
-{
-    var uri = new Uri(connectionString);
-    var username = uri.UserInfo.Split(':')[0];
-    var password = uri.UserInfo.Split(':')[1];
-    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.LocalPath.Substring(1)};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
-}
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
 
 builder.Services.AddScoped<SubTrack.Application.Common.IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
 
 // Quartz
-builder.Services.AddQuartz(q =>
-{
-    var jobKey = new JobKey("NotificationJob");
-    q.AddJob<NotificationJob>(opts => opts.WithIdentity(jobKey));
-    q.AddTrigger(opts => opts.ForJob(jobKey).WithIdentity("NotificationJob-trigger").WithCronSchedule("0 * * ? * * *"));
+builder.Services.AddQuartz(q => {
+    q.AddJob<NotificationJob>(opts => opts.WithIdentity("NotificationJob"));
+    q.AddTrigger(opts => opts.ForJob("NotificationJob").WithCronSchedule("0 * * ? * * *"));
 });
-builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+builder.Services.AddQuartzHostedService();
 
 var app = builder.Build();
 
-// 3. ПАЙПЛАЙН
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
-
-// 4. ПРИМЕНЕНИЕ МИГРАЦИЙ
+// Применение миграций
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    try
-    {
-        Console.WriteLine("Попытка применения миграций...");
-        db.Database.Migrate();
-        Console.WriteLine("База данных успешно обновлена!");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"КРИТИЧЕСКАЯ ОШИБКА МИГРАЦИИ: {ex.Message}");
-    }
+    try { db.Database.Migrate(); }
+    catch (Exception ex) { Console.WriteLine($"Ошибка миграции (может быть нормально): {ex.Message}"); }
 }
 
+app.MapControllers();
 app.Run();
