@@ -28,13 +28,19 @@ builder.Services.AddMediatR(cfg => {
 });
 
 // 2. БЕЗОПАСНАЯ НАСТРОЙКА БД (УНИВЕРСАЛЬНЫЙ ПАРСЕР)
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
-                       ?? builder.Configuration.GetConnectionString("DefaultConnection");
-
-Console.WriteLine($"DEBUG: Полученная строка подключения: {connectionString?.Substring(0, Math.Min(15, connectionString?.Length ?? 0))}...");
+// Просто используем DATABASE_URL напрямую, если он есть
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
 
 if (string.IsNullOrEmpty(connectionString))
-    throw new Exception("КРИТИЧЕСКАЯ ОШИБКА: Строка подключения пуста!");
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+}
+
+Console.WriteLine($"DEBUG: Использую строку: {connectionString}");
+
+// Npgsql сам умеет парсить строку формата postgresql://
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString, o => o.MigrationsHistoryTable("__EFMigrationsHistory")));
 
 // Если Render передает строку в формате postgresql://, преобразуем её
 if (connectionString.StartsWith("postgresql://"))
