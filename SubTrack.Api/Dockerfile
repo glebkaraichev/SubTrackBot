@@ -1,11 +1,11 @@
-﻿# Этап 1: Базовый образ для запуска приложения
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+﻿# Этап 1: Базовый образ для запуска приложения (.NET 10)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-# Этап 2: Образ для сборки исходного кода
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# Этап 2: Образ для сборки исходного кода (.NET 10 SDK)
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Копируем файлы проектов для восстановления зависимостей (NuGet пакетов)
