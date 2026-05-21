@@ -21,12 +21,22 @@ builder.Services.AddSingleton<ITelegramBotClient>(provider =>
 
 // Настройка БД: максимально простая
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+
+// Это "страховка", чтобы мы видели в логах, что происходит
+if (string.IsNullOrEmpty(connectionString))
+{
+    Console.WriteLine("DEBUG: ОШИБКА! Переменная DATABASE_URL не найдена в Render!");
+}
+else
+{
+    Console.WriteLine("DEBUG: Строка подключения считана успешно.");
+}
+// Убедись, что блок выглядит точно так:
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, o => o.MigrationsHistoryTable("__EFMigrationsHistory")));
 
 builder.Services.AddScoped<SubTrack.Application.Common.IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
-
 // Quartz
 builder.Services.AddQuartz(q => {
     q.AddJob<NotificationJob>(opts => opts.WithIdentity("NotificationJob"));
@@ -43,6 +53,6 @@ using (var scope = app.Services.CreateScope())
     try { db.Database.Migrate(); }
     catch (Exception ex) { Console.WriteLine($"Ошибка миграции (может быть нормально): {ex.Message}"); }
 }
-
+app.MapGet("/", () => "Бот работает!");
 app.MapControllers();
 app.Run();
